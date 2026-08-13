@@ -20,3 +20,25 @@ GTAGS
 *.swp
 *.patch
 *.gcov
+
+# Build trees and generated state
+/out/
+/tmp/
+*.log
+*.core
+
+# Local guest and firmware inputs
+/artifacts/
+/local-inputs/
+*.img
+*.dmg
+*.ipsw
+*.raw
+*.qcow2
+*.bin
+*.fd
+*.rom
+
+# Editor and host metadata
+.DS_Store
+.idea/
