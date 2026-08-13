@@ -2,6 +2,8 @@
 
 ## M0: Reproducible baseline
 
+Status: complete. See E0001 and E0002 in `docs/experiments/`.
+
 - Select and pin an upstream QEMU revision.
 - Build `qemu-system-aarch64` on the x86-64 target host.
 - Boot an arm64 Linux guest on QEMU's `virt` machine with TCG.
@@ -11,6 +13,8 @@ Exit condition: the control guest boots twice from a clean process with the
 same command-line contract.
 
 ## M1: VMApple under TCG
+
+Status: complete. See E0003 in `docs/experiments/`.
 
 - Identify VMApple assumptions tied to HVF or an arm64 host.
 - Allow the machine to instantiate with TCG.

@@ -19,7 +19,13 @@ macOS 27, are separate compatibility milestones.
 
 ## Project status
 
-The experiment is in its contract and baseline phase. See:
+Milestones M0 and M1 are complete on the x86-64 Linux development host. The
+pinned QEMU baseline builds with native x86-64 TCG, the AArch64 Linux control
+boot is repeatable, and VMApple executes repository-owned firmware through
+TCG without an accelerator rejection, assertion, or reset loop.
+
+The next milestone is a known-good macOS 12 guest boot using locally
+provisioned inputs. See:
 
 - [Design](docs/design.md)
 - [Roadmap](docs/roadmap.md)
