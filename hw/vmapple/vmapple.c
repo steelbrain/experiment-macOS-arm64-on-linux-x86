@@ -32,6 +32,7 @@
 #include "hw/core/sysbus.h"
 #include "hw/usb/usb.h"
 #include "hw/arm/boot.h"
+#include "hw/arm/machines-qom.h"
 #include "hw/char/pl011.h"
 #include "hw/intc/arm_gic.h"
 #include "hw/intc/arm_gicv3_common.h"
@@ -46,10 +47,10 @@
 #include "qapi/qapi-visit-common.h"
 #include "qobject/qlist.h"
 #include "standard-headers/linux/input.h"
-#include "system/hvf.h"
 #include "system/reset.h"
 #include "system/runstate.h"
 #include "system/system.h"
+#include "system/tcg.h"
 #include "target/arm/gtimer.h"
 #include "target/arm/cpu.h"
 
@@ -203,6 +204,7 @@ static bool create_cfg(VMAppleMachineState *vms, MemoryRegion *mem,
     return true;
 }
 
+#ifdef CONFIG_MAC_PVG_MMIO
 static void create_gfx(VMAppleMachineState *vms, MemoryRegion *mem)
 {
     int irq_gfx = vms->irqmap[VMAPPLE_APV_GFX];
@@ -216,6 +218,7 @@ static void create_gfx(VMAppleMachineState *vms, MemoryRegion *mem)
     sysbus_connect_irq(gfx, 1, qdev_get_gpio_in(vms->gic, irq_iosfc));
     sysbus_realize_and_unref(gfx, &error_fatal);
 }
+#endif
 
 static void create_aes(VMAppleMachineState *vms, MemoryRegion *mem)
 {
@@ -498,7 +501,9 @@ static void mach_vmapple_init(MachineState *machine)
     create_bdif(vms, sysmem);
     create_pvpanic(vms, sysmem);
     create_aes(vms, sysmem);
+#ifdef CONFIG_MAC_PVG_MMIO
     create_gfx(vms, sysmem);
+#endif
     create_uart(vms, VMAPPLE_UART, sysmem, serial_hd(0));
     create_rtc(vms);
     create_pcie(vms);
@@ -571,6 +576,12 @@ static GlobalProperty vmapple_compat_defaults[] = {
     { TYPE_XHCI_PCI, "conditional-intr-mapping", "on" },
 };
 
+static const char *vmapple_get_default_cpu_type(const MachineState *ms)
+{
+    return tcg_enabled() ? ARM_CPU_TYPE_NAME("max")
+                         : ARM_CPU_TYPE_NAME("host");
+}
+
 static void vmapple_machine_class_init(ObjectClass *oc, const void *data)
 {
     MachineClass *mc = MACHINE_CLASS(oc);
@@ -583,7 +594,7 @@ static void vmapple_machine_class_init(ObjectClass *oc, const void *data)
     mc->minimum_page_bits = 12;
     mc->possible_cpu_arch_ids = vmapple_possible_cpu_arch_ids;
     mc->cpu_index_to_instance_props = vmapple_cpu_index_to_props;
-    mc->default_cpu_type = ARM_CPU_TYPE_NAME("host");
+    mc->get_default_cpu_type = vmapple_get_default_cpu_type;
     mc->get_default_cpu_node_id = vmapple_get_default_cpu_node_id;
     mc->default_ram_id = "mach-vmapple.ram";
     mc->desc = "Apple aarch64 Virtual Machine";
@@ -609,6 +620,7 @@ static const TypeInfo vmapple_machine_info = {
     .instance_size = sizeof(VMAppleMachineState),
     .class_init    = vmapple_machine_class_init,
     .instance_init = vmapple_instance_init,
+    .interfaces    = aarch64_machine_interfaces,
 };
 
 static void machvmapple_machine_init(void)
@@ -616,4 +628,3 @@ static void machvmapple_machine_init(void)
     type_register_static(&vmapple_machine_info);
 }
 type_init(machvmapple_machine_init);
-

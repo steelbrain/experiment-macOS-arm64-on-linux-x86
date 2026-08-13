@@ -26,6 +26,7 @@
 OBJECT_DECLARE_SIMPLE_TYPE(AESState, APPLE_AES)
 
 #define MAX_FIFO_SIZE     9
+#define MAX_DUMP_LEN      0x1000
 
 #define CMD_KEY           0x1
 #define CMD_KEY_CONTEXT_SHIFT    27
@@ -253,10 +254,9 @@ static bool cmd_iv(AESState *s)
 
 static void dump_data(const char *desc, const void *p, size_t len)
 {
-    static const size_t MAX_LEN = 0x1000;
-    char hex[MAX_LEN * 2 + 1] = "";
+    char hex[MAX_DUMP_LEN * 2 + 1] = "";
 
-    if (len > MAX_LEN) {
+    if (len > MAX_DUMP_LEN) {
         return;
     }
 
