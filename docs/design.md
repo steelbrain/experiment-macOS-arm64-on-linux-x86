@@ -54,6 +54,18 @@ execute arm64 guest instructions on an x86-64 processor. Consequently, the
 first goal is correctness and observability; performance work begins only
 after a repeatable boot path exists.
 
+## Graphics boundary
+
+The core VMApple machine must not depend on Apple host graphics frameworks.
+When the native paravirtualized graphics device is unavailable, VMApple is
+built and started without that optional device. CPU and platform bring-up is
+therefore headless and software-only.
+
+Guest graphics are a replaceable device boundary. A future `reims-vgpu`
+integration can provide the guest GPU API contract and a portable rendering
+path without coupling the VMApple CPU, interrupt, storage, or boot contracts
+to HVF or other Apple host frameworks.
+
 ## Source strategy
 
 Development should preserve QEMU's upstream history and keep the change set
