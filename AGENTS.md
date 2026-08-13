@@ -15,6 +15,16 @@ isolated compatibility fix, or a passing experiment.
 - If a checkpoint cannot be committed safely, report why instead of silently
   leaving completed work uncommitted.
 
+## Configure and build output
+
+Keep verbose configure and Ninja output out of the conversation context.
+
+- Redirect full configure and Ninja output to ignored log files.
+- While a command is running, report only a short live tail when useful.
+- On completion, report the exit status and only the diagnostic tail needed to
+  explain a failure or confirm success.
+- Do not paste complete configure or Ninja transcripts into tool output.
+
 ## Static reverse engineering
 
 Static reverse engineering is a legitimate way to determine an unclear API
