@@ -18,4 +18,3 @@ mkdir -p "$build_dir"
 )
 
 ninja -C "$build_dir" qemu-system-aarch64
-
