@@ -66,6 +66,31 @@ test "$unique_hashes" = 1
 echo "parallel_workers=$worker_count"
 echo "parallel_hash=$(awk 'NR == 1 {print $NF}' "$work"/cpu.0)"
 
+intercpu_counter=$(/usr/bin/perl -Mthreads -Mthreads::shared -e '
+    my $workers = shift;
+    my $rounds = 64;
+    my $turn :shared = 0;
+    my $counter :shared = 0;
+    my @threads;
+    for my $worker (0 .. $workers - 1) {
+        push @threads, threads->create(sub {
+            for (1 .. $rounds) {
+                lock($turn);
+                cond_wait($turn) while $turn != $worker;
+                ++$counter;
+                $turn = ($turn + 1) % $workers;
+                cond_broadcast($turn);
+            }
+        });
+    }
+    $_->join for @threads;
+    die "inter-CPU counter mismatch: $counter\n"
+        if $counter != $workers * $rounds;
+    print $counter;
+' "$expected_cpus")
+test "$intercpu_counter" = "$((expected_cpus * 64))"
+echo "intercpu_counter=$intercpu_counter"
+
 /bin/dd if=/dev/zero of="$work/storage.bin" bs=1048576 count=32 2>/dev/null
 /bin/sync
 storage_hash=$(/usr/bin/cksum "$work/storage.bin" | awk '{print $1 ":" $2}')
