@@ -12,6 +12,7 @@ memory=${QEMU_27ON86_MEMORY:-8G}
 ssh_port=${QEMU_27ON86_SSH_PORT:-10022}
 mac=${QEMU_27ON86_MAC:-52:54:00:12:34:56}
 pcap=${QEMU_27ON86_PCAP:-}
+tcg_smp_final_shift=${QEMU_27ON86_TCG_SMP_FINAL_SHIFT:--4}
 
 : "${QEMU_27ON86_FIRMWARE:?set QEMU_27ON86_FIRMWARE}"
 : "${QEMU_27ON86_AUX:?set QEMU_27ON86_AUX}"
@@ -49,6 +50,15 @@ case "$mac" in
         ;;
 esac
 
+case "$tcg_smp_final_shift" in
+    -10 | -[0-9] | [0-9] | 10)
+        ;;
+    *)
+        echo "TCG SMP final shift must be between -10 and 10" >&2
+        exit 1
+        ;;
+esac
+
 mkdir -p "$output_dir"
 run_dir=$(mktemp -d "$output_dir/vmapple-run.XXXXXX")
 aux_work="$run_dir/aux.work"
@@ -62,7 +72,7 @@ echo "VMApple run directory: $run_dir"
 set --
 if test "$cpus" -gt 1; then
     set -- "$@" -icount shift=0,align=off,sleep=off
-    machine="vmapple,uuid=$QEMU_27ON86_ECID,accel=tcg,tcg-smp-final-shift=-4"
+    machine="vmapple,uuid=$QEMU_27ON86_ECID,accel=tcg,tcg-smp-final-shift=$tcg_smp_final_shift"
 else
     machine="vmapple,uuid=$QEMU_27ON86_ECID,accel=tcg"
 fi
