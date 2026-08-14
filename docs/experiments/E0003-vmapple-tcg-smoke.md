@@ -44,7 +44,9 @@ The baseline required four source corrections:
   target's machine list.
 - TCG must use an emulated CPU model instead of the accelerator-only `host`
   CPU model.
-- VMApple graphics must be optional when its host framework is unavailable.
+- VMApple must preserve its graphics and surface-controller MMIO windows when
+  its host graphics framework is unavailable. In headless mode, inert
+  software devices accept probes and advertise no capabilities.
 
 A separate C portability correction makes the AES device build with a
 compiler that treats a block-scope `const` array bound as a variable-length
@@ -55,8 +57,8 @@ array.
 The VMApple machine contract can instantiate and execute firmware through
 AArch64 TCG on an x86-64 host without an accelerator rejection, assertion, or
 reset loop. CPU execution, reset-vector placement, userspace GIC realization,
-memory mapping, configuration devices, storage backends, and serial output
-all pass the controlled smoke checkpoint.
+memory mapping—including the headless graphics windows—configuration devices,
+storage backends, and serial output all pass the controlled smoke checkpoint.
 
 This result does not claim that a macOS boot environment or guest kernel has
 run. That requires locally provisioned guest inputs and is the next

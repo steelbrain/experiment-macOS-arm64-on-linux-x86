@@ -69,6 +69,10 @@ struct VMAppleMachineState {
     PCIBus *bus;
     MemoryRegion fw_mr;
     MemoryRegion ecam_alias;
+#ifndef CONFIG_MAC_PVG_MMIO
+    MemoryRegion gfx_stub_mr;
+    MemoryRegion iosfc_stub_mr;
+#endif
     uint64_t uuid;
 };
 
@@ -205,9 +209,35 @@ static bool create_cfg(VMAppleMachineState *vms, MemoryRegion *mem,
     return true;
 }
 
-#ifdef CONFIG_MAC_PVG_MMIO
+#ifndef CONFIG_MAC_PVG_MMIO
+static uint64_t gfx_stub_read(void *opaque, hwaddr offset, unsigned size)
+{
+    return 0;
+}
+
+static void gfx_stub_write(void *opaque, hwaddr offset, uint64_t value,
+                           unsigned size)
+{
+}
+
+static const MemoryRegionOps gfx_stub_ops = {
+    .read = gfx_stub_read,
+    .write = gfx_stub_write,
+    .endianness = DEVICE_LITTLE_ENDIAN,
+    .valid = {
+        .min_access_size = 4,
+        .max_access_size = 8,
+    },
+    .impl = {
+        .min_access_size = 4,
+        .max_access_size = 8,
+    },
+};
+#endif
+
 static void create_gfx(VMAppleMachineState *vms, MemoryRegion *mem)
 {
+#ifdef CONFIG_MAC_PVG_MMIO
     int irq_gfx = vms->irqmap[VMAPPLE_APV_GFX];
     int irq_iosfc = vms->irqmap[VMAPPLE_APV_IOSFC];
     SysBusDevice *gfx;
@@ -218,8 +248,24 @@ static void create_gfx(VMAppleMachineState *vms, MemoryRegion *mem)
     sysbus_connect_irq(gfx, 0, qdev_get_gpio_in(vms->gic, irq_gfx));
     sysbus_connect_irq(gfx, 1, qdev_get_gpio_in(vms->gic, irq_iosfc));
     sysbus_realize_and_unref(gfx, &error_fatal);
-}
+#else
+    /*
+     * The guest platform always exposes these windows, even when QEMU was
+     * built without a host graphics backend.  Keep them mapped as inert
+     * devices so probing a headless VM cannot raise an external abort.
+     */
+    memory_region_init_io(&vms->gfx_stub_mr, OBJECT(vms), &gfx_stub_ops, vms,
+                          "vmapple.gfx-stub",
+                          vms->memmap[VMAPPLE_APV_GFX].size);
+    memory_region_init_io(&vms->iosfc_stub_mr, OBJECT(vms), &gfx_stub_ops, vms,
+                          "vmapple.iosfc-stub",
+                          vms->memmap[VMAPPLE_APV_IOSFC].size);
+    memory_region_add_subregion(mem, vms->memmap[VMAPPLE_APV_GFX].base,
+                                &vms->gfx_stub_mr);
+    memory_region_add_subregion(mem, vms->memmap[VMAPPLE_APV_IOSFC].base,
+                                &vms->iosfc_stub_mr);
 #endif
+}
 
 static void create_aes(VMAppleMachineState *vms, MemoryRegion *mem)
 {
@@ -517,9 +563,7 @@ static void mach_vmapple_init(MachineState *machine)
     create_bdif(vms, sysmem);
     create_pvpanic(vms, sysmem);
     create_aes(vms, sysmem);
-#ifdef CONFIG_MAC_PVG_MMIO
     create_gfx(vms, sysmem);
-#endif
     create_uart(vms, VMAPPLE_UART, sysmem, serial_hd(0));
     create_rtc(vms);
     create_pcie(vms);

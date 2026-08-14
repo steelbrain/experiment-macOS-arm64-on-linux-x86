@@ -13,6 +13,7 @@ firmware_object="$fixture_dir/firmware.o"
 aux="$fixture_dir/aux"
 root="$fixture_dir/root"
 log="$output_dir/vmapple-tcg-smoke.log"
+mtree_log="$output_dir/vmapple-tcg-mtree.log"
 
 cleanup()
 {
@@ -57,4 +58,32 @@ if test "$status" -ne 0 && test "$status" -ne 124; then
 fi
 
 grep -Fq 'VMAPPLE_TCG_SMOKE_OK' "$log"
+
+if ! "$qemu" -device help 2>&1 | grep -Fq 'apple-gfx-mmio'; then
+    status=0
+    printf 'info mtree -f\nquit\n' | timeout --signal=TERM 5s "$qemu" \
+        -machine vmapple,uuid=1,accel=tcg \
+        -cpu max \
+        -smp 1 \
+        -m 1G \
+        -nodefaults \
+        -display none \
+        -serial none \
+        -monitor stdio \
+        -S \
+        -bios "$firmware" \
+        -drive file="$aux",if=pflash,format=raw \
+        -drive file="$root",if=pflash,format=raw \
+        >"$mtree_log" 2>&1 || status=$?
+
+    if test "$status" -ne 0; then
+        tail -n 40 "$mtree_log" >&2
+        echo "VMApple memory-map check exited unexpectedly: $status" >&2
+        exit 1
+    fi
+
+    grep -Fq 'vmapple.gfx-stub' "$mtree_log"
+    grep -Fq 'vmapple.iosfc-stub' "$mtree_log"
+fi
+
 echo "VMApple TCG smoke test: PASS"
