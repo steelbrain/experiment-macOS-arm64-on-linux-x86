@@ -13,6 +13,7 @@ ssh_port=${QEMU_27ON86_SSH_PORT:-10022}
 mac=${QEMU_27ON86_MAC:-52:54:00:12:34:56}
 pcap=${QEMU_27ON86_PCAP:-}
 tcg_smp_final_shift=${QEMU_27ON86_TCG_SMP_FINAL_SHIFT:--4}
+run_installer=${QEMU_27ON86_RUN_INSTALLER:-off}
 
 : "${QEMU_27ON86_FIRMWARE:?set QEMU_27ON86_FIRMWARE}"
 : "${QEMU_27ON86_AUX:?set QEMU_27ON86_AUX}"
@@ -59,6 +60,15 @@ case "$tcg_smp_final_shift" in
         ;;
 esac
 
+case "$run_installer" in
+    on | off)
+        ;;
+    *)
+        echo "installer selector must be 'on' or 'off'" >&2
+        exit 1
+        ;;
+esac
+
 mkdir -p "$output_dir"
 run_dir=$(mktemp -d "$output_dir/vmapple-run.XXXXXX")
 aux_work="$run_dir/aux.work"
@@ -72,9 +82,9 @@ echo "VMApple run directory: $run_dir"
 set --
 if test "$cpus" -gt 1; then
     set -- "$@" -icount shift=0,align=off,sleep=off
-    machine="vmapple,uuid=$QEMU_27ON86_ECID,accel=tcg,tcg-smp-final-shift=$tcg_smp_final_shift"
+    machine="vmapple,uuid=$QEMU_27ON86_ECID,accel=tcg,run-installer=$run_installer,tcg-smp-final-shift=$tcg_smp_final_shift"
 else
-    machine="vmapple,uuid=$QEMU_27ON86_ECID,accel=tcg"
+    machine="vmapple,uuid=$QEMU_27ON86_ECID,accel=tcg,run-installer=$run_installer"
 fi
 
 if test -n "$pcap"; then

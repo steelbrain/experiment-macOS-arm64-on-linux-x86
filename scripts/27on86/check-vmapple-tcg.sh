@@ -14,6 +14,7 @@ aux="$fixture_dir/aux"
 root="$fixture_dir/root"
 log="$output_dir/vmapple-tcg-smoke.log"
 mtree_log="$output_dir/vmapple-tcg-mtree.log"
+cfg_log="$output_dir/vmapple-tcg-cfg.log"
 
 cleanup()
 {
@@ -85,5 +86,29 @@ if ! "$qemu" -device help 2>&1 | grep -Fq 'apple-gfx-mmio'; then
     grep -Fq 'vmapple.gfx-stub' "$mtree_log"
     grep -Fq 'vmapple.iosfc-stub' "$mtree_log"
 fi
+
+status=0
+printf 'xp /1wx 0x400034\nquit\n' | "$qemu" \
+    -machine vmapple,uuid=1,accel=tcg,run-installer=on \
+    -cpu max \
+    -smp 1 \
+    -m 1G \
+    -nodefaults \
+    -display none \
+    -serial none \
+    -monitor stdio \
+    -S \
+    -bios "$firmware" \
+    -drive file="$aux",if=pflash,format=raw \
+    -drive file="$root",if=pflash,format=raw \
+    >"$cfg_log" 2>&1 || status=$?
+
+if test "$status" -ne 0; then
+    tail -n 40 "$cfg_log" >&2
+    echo "VMApple configuration check exited unexpectedly: $status" >&2
+    exit 1
+fi
+
+grep -Eq '00400034: 0x00000001' "$cfg_log"
 
 echo "VMApple TCG smoke test: PASS"

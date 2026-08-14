@@ -76,6 +76,7 @@ struct VMAppleMachineState {
     MemoryRegion iosfc_stub_mr;
 #endif
     uint64_t uuid;
+    bool run_installer;
     int64_t tcg_smp_final_shift;
     QEMUTimer *tcg_smp_shift_timer;
     bool tcg_smp_all_powered;
@@ -207,6 +208,7 @@ static bool create_cfg(VMAppleMachineState *vms, MemoryRegion *mem,
     qdev_prop_set_uint32(vms->cfg, "nr-cpus", machine->smp.cpus);
     qdev_prop_set_uint64(vms->cfg, "ecid", vms->uuid);
     qdev_prop_set_uint64(vms->cfg, "ram-size", machine->ram_size);
+    qdev_prop_set_uint32(vms->cfg, "run_installer2", vms->run_installer);
     qdev_prop_set_uint32(vms->cfg, "rnd", rnd);
 
     if (!sysbus_realize_and_unref(cfg, errp)) {
@@ -737,6 +739,16 @@ static void vmapple_machine_class_init(ObjectClass *oc, const void *data)
                      G_N_ELEMENTS(vmapple_compat_defaults));
 }
 
+static bool vmapple_get_run_installer(Object *obj, Error **errp)
+{
+    return VMAPPLE_MACHINE(obj)->run_installer;
+}
+
+static void vmapple_set_run_installer(Object *obj, bool value, Error **errp)
+{
+    VMAPPLE_MACHINE(obj)->run_installer = value;
+}
+
 static void vmapple_instance_init(Object *obj)
 {
     VMAppleMachineState *vms = VMAPPLE_MACHINE(obj);
@@ -746,6 +758,12 @@ static void vmapple_instance_init(Object *obj)
     object_property_add_uint64_ptr(obj, "uuid", &vms->uuid,
                                    OBJ_PROP_FLAG_READWRITE);
     object_property_set_description(obj, "uuid", "Machine UUID (SDOM)");
+
+    object_property_add_bool(obj, "run-installer",
+                             vmapple_get_run_installer,
+                             vmapple_set_run_installer);
+    object_property_set_description(obj, "run-installer",
+                                    "Boot the installer environment");
 
     object_property_add(obj, "tcg-smp-final-shift", "int",
                         vmapple_get_tcg_smp_final_shift,
