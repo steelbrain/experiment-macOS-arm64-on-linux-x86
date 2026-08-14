@@ -18,16 +18,25 @@ in macOS 27, are separate compatibility milestones.
 
 ## Project status
 
-Milestones M0 through M2 are complete on the x86-64 Linux development host. The
-pinned QEMU baseline builds with native x86-64 TCG, the AArch64 Linux control
-boot is repeatable, and VMApple executes repository-owned firmware through
-TCG without an accelerator rejection, assertion, or reset loop. A locally
-provisioned macOS 13 guest also boots through XNU into a live launchd process
-with one vCPU and headless graphics. See:
+Milestones M0 through M2 are complete on the x86-64 Linux development host.
+The macOS 13 VMApple guest now boots repeatably with eight vCPUs, exposes a
+headless SSH service, passes CPU, memory, storage, networking, and timer
+workloads, and shuts down cleanly. The one-vCPU configuration remains a
+passing regression target. See:
 
 - [Design](docs/design.md)
 - [Roadmap](docs/roadmap.md)
 - [Experiment records](docs/experiments/README.md)
+
+The complete fresh-clone validation is:
+
+```sh
+scripts/27on86/validate-headless.py --runs 2 --cpus 8
+```
+
+It requires the local input environment documented by the experiment records.
+The runner validates auxiliary NVRAM geometry before starting QEMU and leaves
+all writable clones, generated keys, and logs under the ignored output tree.
 
 ## Repository rules
 

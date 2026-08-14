@@ -49,10 +49,13 @@ Exit condition: macOS 27 reaches the M2 boot criterion.
 
 ## M4: Usability
 
-- Reliable shutdown, reboot, storage, and networking.
-- Remote interactive access without an emulated accelerated GPU.
-- Stable multi-vCPU operation. Eight-vCPU boot is established in E0005;
-  shutdown and longer-duration workload coverage remain.
+Status: in progress. Headless access, storage, networking, workload coverage,
+and clean shutdown are established in E0006. Reboot remains.
+
+- Reliable reboot; clean shutdown, storage, and networking are complete.
+- Remote interactive access without an emulated accelerated GPU is complete.
+- Stable multi-vCPU operation and representative workload coverage are
+  complete for eight vCPUs.
 - Installation or update workflow where legally and technically possible.
 
 ## M5: Performance

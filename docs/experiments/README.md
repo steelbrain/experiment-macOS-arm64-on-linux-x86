@@ -3,6 +3,15 @@
 Experiments turn observations into reproducible evidence. Create one Markdown
 file per experiment using a monotonically increasing number.
 
+Current records:
+
+- E0001: build baseline
+- E0002: TCG control boot
+- E0003: VMApple TCG smoke test
+- E0004: macOS userspace boot
+- E0005: reliable eight-vCPU userspace boot
+- E0006: repeatable headless guest workloads
+
 ## Template
 
 ```markdown
