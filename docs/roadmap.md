@@ -26,8 +26,8 @@ a QEMU assertion, unsupported-accelerator rejection, or immediate reset loop.
 
 ## M2: Known-good guest boot
 
-Status: complete for macOS 13 with one vCPU. See E0004 in
-`docs/experiments/`.
+Status: complete for macOS 13 with one and eight vCPUs. See E0004 and E0005
+in `docs/experiments/`.
 
 - Use a locally provisioned VMApple guest.
 - Classify failures as CPU, timer/interrupt, memory, boot, or device contract.
@@ -51,7 +51,8 @@ Exit condition: macOS 27 reaches the M2 boot criterion.
 
 - Reliable shutdown, reboot, storage, and networking.
 - Remote interactive access without an emulated accelerated GPU.
-- Stable multi-vCPU operation.
+- Stable multi-vCPU operation. Eight-vCPU boot is established in E0005;
+  shutdown and longer-duration workload coverage remain.
 - Installation or update workflow where legally and technically possible.
 
 ## M5: Performance

@@ -48,8 +48,8 @@ run panicked before or after the userspace transition.
 
 The following compatibility limits remain:
 
-- one vCPU is currently required; multi-vCPU startup stalls while bringing
-  secondary CPUs online;
+- multi-vCPU operation requires the precise guest-time policy tested in
+  E0005;
 - pointer authentication instructions preserve pointer stripping, but the
   unavailable implementation-defined authentication cipher is not validated;
 - the headless graphics windows accept probes but expose no rendering
@@ -65,5 +65,5 @@ starts without HVF or a host graphics framework.
 
 ## Next experiment
 
-Make secondary-CPU startup reliable, then add a guest-side reachable service
-or console path for interactive use.
+See E0005 for reliable eight-vCPU startup, then add a guest-side reachable
+service or console path for interactive use.
