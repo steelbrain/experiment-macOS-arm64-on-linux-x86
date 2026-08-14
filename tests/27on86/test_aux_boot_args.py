@@ -39,6 +39,17 @@ def bank(*entries: bytes) -> bytes:
 
 
 class AuxBootArgsTest(unittest.TestCase):
+    def test_accepts_bank_aligned_layout(self):
+        image = bytearray(bank(b"boot-args="))
+
+        self.assertEqual(MODULE.validate_nvram_layout(image), [0])
+
+    def test_rejects_displaced_bank_layout(self):
+        image = bytearray(b"\0" * 0x4000 + bank(b"boot-args="))
+
+        with self.assertRaisesRegex(ValueError, "bank-aligned"):
+            MODULE.validate_nvram_layout(image)
+
     def test_updates_every_valid_mirror(self):
         original = bank(b"binary=\xff\x01", b"boot-args=", b"auto-boot=true")
         image = bytearray(original + original)

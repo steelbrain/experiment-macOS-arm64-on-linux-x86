@@ -73,17 +73,26 @@ def replace_boot_args(partition: bytearray, boot_args: bytes) -> None:
     partition[HEADER_SIZE:] = encoded.ljust(len(payload), b"\0")
 
 
-def set_boot_args(image: bytearray, boot_args: bytes) -> int:
+def validate_nvram_layout(image: bytearray) -> list[int]:
     banks = list(nvram_banks(image))
     if not banks:
         raise ValueError("no valid NVRAM banks found")
+    if any(offset % NVRAM_BANK_SIZE for offset in banks):
+        raise ValueError("NVRAM banks must start at bank-aligned offsets")
+    for bank_offset in banks:
+        bank_end = bank_offset + NVRAM_BANK_SIZE
+        if not list(system_partitions(image, bank_offset, bank_end)):
+            raise ValueError("NVRAM bank has no valid CHRP system partition")
+    return banks
+
+
+def set_boot_args(image: bytearray, boot_args: bytes) -> int:
+    banks = validate_nvram_layout(image)
 
     count = 0
     for bank_offset in banks:
         bank_end = bank_offset + NVRAM_BANK_SIZE
         matches = list(system_partitions(image, bank_offset, bank_end))
-        if not matches:
-            raise ValueError("NVRAM bank has no valid CHRP system partition")
         for offset, size in matches:
             partition = image[offset : offset + size]
             replace_boot_args(partition, boot_args)
@@ -97,15 +106,23 @@ def set_boot_args(image: bytearray, boot_args: bytes) -> int:
 
 def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument("--check-only", action="store_true")
     parser.add_argument("image", type=Path)
-    parser.add_argument("boot_args")
+    parser.add_argument("boot_args", nargs="?")
     args = parser.parse_args()
 
-    if "\0" in args.boot_args:
+    if args.check_only and args.boot_args is not None:
+        parser.error("boot_args cannot be used with --check-only")
+    if not args.check_only and args.boot_args is None:
+        parser.error("boot_args is required unless --check-only is used")
+    if args.boot_args is not None and "\0" in args.boot_args:
         parser.error("boot arguments must not contain NUL bytes")
 
     image = bytearray(args.image.read_bytes())
     try:
+        if args.check_only:
+            validate_nvram_layout(image)
+            return
         count = set_boot_args(image, args.boot_args.encode())
     except ValueError as error:
         parser.error(str(error))

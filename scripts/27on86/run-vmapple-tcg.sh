@@ -40,6 +40,8 @@ if ! test -x "$qemu"; then
     exit 1
 fi
 
+"$script_dir/set-aux-boot-args.py" --check-only "$QEMU_27ON86_AUX"
+
 case "$cpus:$ssh_port:$virtio_console_max_ports:$QEMU_27ON86_ECID" in
     *[!0-9:]* | :* | *::*)
         echo "CPU count, SSH port, console port count, and ECID must be unsigned decimal values" >&2
