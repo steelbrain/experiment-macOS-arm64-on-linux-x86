@@ -82,6 +82,9 @@ OBJECT_DECLARE_SIMPLE_TYPE(VMAppleMachineState, VMAPPLE_MACHINE)
 /* Number of external interrupt lines to configure the GIC with */
 #define NUM_IRQS 256
 
+/* The virtual platform timebase runs at 24 MHz. */
+#define VMAPPLE_TIMEBASE_HZ 24000000
+
 enum {
     VMAPPLE_FIRMWARE,
     VMAPPLE_CONFIG,
@@ -528,6 +531,8 @@ static void mach_vmapple_init(MachineState *machine)
             isar1 = FIELD_DP64(isar1, ID_AA64ISAR1, API, 1);
             SET_IDREG(&arm_cpu->isar, ID_AA64ISAR1, isar1);
             arm_cpu->pauth_auth_bypass = true;
+            object_property_set_int(cpu, "cntfrq", VMAPPLE_TIMEBASE_HZ,
+                                    &error_fatal);
         }
 
         cs = CPU(cpu);
