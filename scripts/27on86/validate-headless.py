@@ -74,11 +74,11 @@ class QMP:
             if "return" in response:
                 return response["return"]
 
-    def wait_for_shutdown(self, timeout: float):
+    def wait_for_event(self, event: str, timeout: float):
         self.socket.settimeout(timeout)
         while True:
             message = self.receive()
-            if message.get("event") == "SHUTDOWN":
+            if message.get("event") == event:
                 return message.get("data", {})
 
 
@@ -131,7 +131,9 @@ def wait_for_ssh(port: int, identity: Path, timeout: float):
     raise RuntimeError("timed out waiting for SSH")
 
 
-def start_qemu(index: int, cpus: int, output: Path, base_environment):
+def start_qemu(
+    index: int, cpus: int, output: Path, base_environment, reboot_cycle: bool
+):
     ssh_port = reserve_tcp_port()
     gdb_port = reserve_tcp_port()
     serial_socket = Path(f"/tmp/27on86-{os.getpid()}-{index}.serial")
@@ -147,6 +149,7 @@ def start_qemu(index: int, cpus: int, output: Path, base_environment):
             "QEMU_27ON86_GDB_PORT": str(gdb_port),
             "QEMU_27ON86_PAUSE_AT_START": "on",
             "QEMU_27ON86_CPUS": str(cpus),
+            "QEMU_27ON86_NO_REBOOT": "off" if reboot_cycle else "on",
         }
     )
     process = subprocess.Popen(
@@ -167,7 +170,21 @@ def start_qemu(index: int, cpus: int, output: Path, base_environment):
     return process, run_directory, serial_socket, ssh_port, gdb_port
 
 
-def run_validation(index: int, cpus: int, output: Path, base_environment):
+def inject_handoff(gdb_port: int):
+    injector_environment = os.environ.copy()
+    injector_environment.update(
+        {
+            "QEMU_27ON86_GDB_PORT": str(gdb_port),
+            "QEMU_27ON86_XNU_BOOT_ARGS": "-s -v serial=11 debug=0x14c",
+            "QEMU_27ON86_CSR_CONFIG": "0x2",
+        }
+    )
+    subprocess.run([os.fspath(INJECTOR)], env=injector_environment, check=True)
+
+
+def run_validation(
+    index: int, cpus: int, output: Path, base_environment, reboot_cycle: bool = False
+):
     started = time.monotonic()
     process = None
     qmp = None
@@ -176,21 +193,11 @@ def run_validation(index: int, cpus: int, output: Path, base_environment):
     run_directory = None
     try:
         process, run_directory, serial_socket, ssh_port, gdb_port = start_qemu(
-            index, cpus, output, base_environment
+            index, cpus, output, base_environment, reboot_cycle
         )
         print(f"run {index}: QEMU started in {run_directory}", flush=True)
 
-        injector_environment = os.environ.copy()
-        injector_environment.update(
-            {
-                "QEMU_27ON86_GDB_PORT": str(gdb_port),
-                "QEMU_27ON86_XNU_BOOT_ARGS": "-s -v serial=11 debug=0x14c",
-                "QEMU_27ON86_CSR_CONFIG": "0x2",
-            }
-        )
-        subprocess.run(
-            [os.fspath(INJECTOR)], env=injector_environment, check=True
-        )
+        inject_handoff(gdb_port)
         print(f"run {index}: XNU handoff configured", flush=True)
 
         state_directory = run_directory / "headless-state"
@@ -222,7 +229,7 @@ def run_validation(index: int, cpus: int, output: Path, base_environment):
         )
         network_url = f"http://10.0.2.2:{http_port}/{network_file.name}"
         with WORKLOAD.open("rb") as workload:
-            result = subprocess.run(
+            subprocess.run(
                 ssh_command(
                     ssh_port,
                     identity,
@@ -242,6 +249,36 @@ def run_validation(index: int, cpus: int, output: Path, base_environment):
         print(workload_output, end="", flush=True)
 
         qmp = QMP(run_directory / "qmp.sock")
+        if reboot_cycle:
+            subprocess.run(
+                ssh_command(ssh_port, identity, "/bin/launchctl reboot"),
+                stdout=subprocess.DEVNULL,
+                stderr=subprocess.DEVNULL,
+                check=False,
+            )
+            reset = qmp.wait_for_event("RESET", 120)
+            print(f"run {index}: guest reset observed ({reset})", flush=True)
+            inject_handoff(gdb_port)
+            print(f"run {index}: reboot handoff configured", flush=True)
+            subprocess.run(
+                [
+                    os.fspath(BOOTSTRAP),
+                    os.fspath(serial_socket),
+                    os.fspath(state_directory),
+                ],
+                check=True,
+            )
+            wait_for_ssh(ssh_port, identity, 60)
+            result = subprocess.run(
+                ssh_command(
+                    ssh_port,
+                    identity,
+                    f"test $(/usr/sbin/sysctl -n hw.ncpu) = {cpus}",
+                ),
+                check=True,
+            )
+            print(f"run {index}: SSH ready after reboot", flush=True)
+
         subprocess.run(
             ssh_command(
                 ssh_port,
@@ -252,7 +289,7 @@ def run_validation(index: int, cpus: int, output: Path, base_environment):
             stderr=subprocess.DEVNULL,
             check=False,
         )
-        shutdown = qmp.wait_for_shutdown(120)
+        shutdown = qmp.wait_for_event("SHUTDOWN", 120)
         status = qmp.execute("query-status")
         if not shutdown.get("guest") or status.get("running"):
             raise RuntimeError(
@@ -300,6 +337,7 @@ def parse_args():
         "--output", type=Path, default=SOURCE_ROOT / "out/headless-validation"
     )
     parser.add_argument("--skip-one-cpu-regression", action="store_true")
+    parser.add_argument("--reboot-cycle", action="store_true")
     return parser.parse_args()
 
 
@@ -312,7 +350,15 @@ def main():
 
     completed = []
     for index in range(1, args.runs + 1):
-        completed.append(run_validation(index, args.cpus, args.output, base_environment))
+        completed.append(
+            run_validation(
+                index,
+                args.cpus,
+                args.output,
+                base_environment,
+                reboot_cycle=args.reboot_cycle,
+            )
+        )
     if not args.skip_one_cpu_regression:
         completed.append(
             run_validation(args.runs + 1, 1, args.output, base_environment)

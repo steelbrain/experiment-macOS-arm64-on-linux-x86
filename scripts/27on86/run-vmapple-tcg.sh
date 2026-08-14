@@ -21,6 +21,7 @@ virtio_console_chardev=${QEMU_27ON86_VIRTIO_CONSOLE_CHARDEV:-}
 virtio_console_max_ports=${QEMU_27ON86_VIRTIO_CONSOLE_MAX_PORTS:-31}
 gdb_port=${QEMU_27ON86_GDB_PORT:-}
 pause_at_start=${QEMU_27ON86_PAUSE_AT_START:-off}
+no_reboot=${QEMU_27ON86_NO_REBOOT:-on}
 
 : "${QEMU_27ON86_FIRMWARE:?set QEMU_27ON86_FIRMWARE}"
 : "${QEMU_27ON86_AUX:?set QEMU_27ON86_AUX}"
@@ -96,6 +97,15 @@ case "$pause_at_start" in
         ;;
 esac
 
+case "$no_reboot" in
+    on | off)
+        ;;
+    *)
+        echo "no-reboot selector must be 'on' or 'off'" >&2
+        exit 1
+        ;;
+esac
+
 mkdir -p "$output_dir"
 run_dir=$(mktemp -d "$output_dir/vmapple-run.XXXXXX")
 aux_work="$run_dir/aux.work"
@@ -145,6 +155,10 @@ if test "$pause_at_start" = on; then
     set -- "$@" -S
 fi
 
+if test "$no_reboot" = on; then
+    set -- "$@" -no-reboot
+fi
+
 exec "$qemu" \
     -machine "$machine" \
     -cpu max \
@@ -156,7 +170,6 @@ exec "$qemu" \
     -serial "$serial" \
     -qmp "unix:$run_dir/qmp.sock,server=on,wait=off" \
     -action panic=pause,shutdown=pause \
-    -no-reboot \
     -bios "$QEMU_27ON86_FIRMWARE" \
     -drive "if=pflash,format=raw,file.filename=$aux_work,file.locking=off" \
     -drive "if=pflash,format=raw,file.filename=$root_work,file.locking=off" \
