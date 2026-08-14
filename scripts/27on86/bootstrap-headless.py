@@ -7,6 +7,7 @@ import base64
 import importlib.util
 import os
 from pathlib import Path
+import re
 import shlex
 import subprocess
 import sys
@@ -26,7 +27,7 @@ ASSETS = (
 )
 
 
-def run_serial(socket_path: Path, command: str, timeout: float = 180):
+def run_serial(socket_path: Path, command: str, timeout: float = 600):
     status, output = serial_command.run_command(
         os.fspath(socket_path), command, timeout
     )
@@ -46,9 +47,10 @@ def ensure_key(path: Path):
     )
 
 
-def upload(socket_path: Path, name: str, content: bytes, mode: int):
-    encoded = base64.b64encode(content).decode()
-    command = """
+def discover_stage(socket_path: Path):
+    output = run_serial(
+        socket_path,
+        """
 stage=
 for candidate in /System/Volumes/Preboot/*; do
     leaf=${candidate##*/}
@@ -61,27 +63,41 @@ for candidate in /System/Volumes/Preboot/*; do
 done
 test -n "$stage"
 mkdir -p "$stage"
-printf '%%s' %s | /usr/bin/base64 -D > "$stage/%s"
-chmod %o "$stage/%s"
-""" % (shlex.quote(encoded), name, mode, name)
-    run_serial(socket_path, command)
+printf '%s\n' "$stage"
+""",
+    )
+    matches = re.findall(
+        r"/System/Volumes/Preboot/[0-9A-Fa-f-]{36}/var/27on86", output
+    )
+    if not matches:
+        raise RuntimeError("guest did not report its staging directory")
+    return matches[-1]
 
 
-def stage_command():
-    return """
-stage=
-for candidate in /System/Volumes/Preboot/*; do
-    leaf=${candidate##*/}
-    case "$leaf" in
-        ????????-????-????-????-????????????)
-            stage="$candidate/var/27on86"
-            break
-            ;;
-    esac
-done
-test -n "$stage"
-"$stage/guest-headless-bootstrap.sh"
-"""
+def upload(socket_path: Path, stage: str, name: str, content: bytes, mode: int):
+    print(f"staging {name}", flush=True)
+    encoded = base64.b64encode(content).decode()
+    destination = f"{stage}/{name}"
+    encoded_path = destination + ".b64"
+    run_serial(socket_path, f": > {shlex.quote(encoded_path)}")
+    for offset in range(0, len(encoded), 128):
+        chunk = encoded[offset : offset + 128]
+        run_serial(
+            socket_path,
+            "printf '%%s' %s >> %s"
+            % (shlex.quote(chunk), shlex.quote(encoded_path)),
+        )
+    run_serial(
+        socket_path,
+        "/usr/bin/base64 -D < %s > %s"
+        % (shlex.quote(encoded_path), shlex.quote(destination)),
+    )
+    run_serial(socket_path, "rm -f %s" % shlex.quote(encoded_path))
+    run_serial(socket_path, "chmod %o %s" % (mode, shlex.quote(destination)))
+
+
+def stage_command(stage: str):
+    return shlex.quote(f"{stage}/guest-headless-bootstrap.sh")
 
 
 def parse_args():
@@ -98,21 +114,30 @@ def main():
     ensure_key(client_key)
     ensure_key(host_key)
 
-    upload(args.serial_socket, "authorized_keys", client_key.with_name(
+    stage = discover_stage(args.serial_socket)
+    upload(args.serial_socket, stage, "authorized_keys", client_key.with_name(
         client_key.name + ".pub"
     ).read_bytes(), 0o600)
-    upload(args.serial_socket, "ssh_host_ed25519_key", host_key.read_bytes(), 0o600)
     upload(
         args.serial_socket,
+        stage,
+        "ssh_host_ed25519_key",
+        host_key.read_bytes(),
+        0o600,
+    )
+    upload(
+        args.serial_socket,
+        stage,
         "ssh_host_ed25519_key.pub",
         host_key.with_name(host_key.name + ".pub").read_bytes(),
         0o644,
     )
     for name in ASSETS:
         mode = 0o700 if name.endswith(".sh") else 0o600
-        upload(args.serial_socket, name, (SCRIPT_DIR / name).read_bytes(), mode)
+        upload(args.serial_socket, stage, name, (SCRIPT_DIR / name).read_bytes(), mode)
 
-    output = run_serial(args.serial_socket, stage_command(), timeout=360)
+    print("running guest headless bootstrap", flush=True)
+    output = run_serial(args.serial_socket, stage_command(stage), timeout=900)
     print(output, end="")
     print(f"SSH identity: {client_key}")
     return 0

@@ -31,6 +31,11 @@ if test "$stitched" != 1; then
     exit 1
 fi
 
+# Firmlink visibility precedes the remaining volume-group notifications. Keep
+# phase 2 alive long enough for those notifications to settle before configd
+# opens the network stack.
+echo "APFS firmlinks visible; settling volume-group setup"
+sleep 60
 kill -INT "$boot_pid" 2>/dev/null || true
 wait "$boot_pid" 2>/dev/null || true
 trap - EXIT HUP INT TERM

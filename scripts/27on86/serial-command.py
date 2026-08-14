@@ -13,6 +13,8 @@ import time
 BOOT_PROMPT = b"-sh-3.2# "
 READY_PROMPT = b"__27ON86_PROMPT__ "
 MAX_BUFFER = 4 * 1024 * 1024
+WRITE_CHUNK_SIZE = 64
+WRITE_CHUNK_DELAY = 0.01
 
 
 class SerialCommandError(Exception):
@@ -53,6 +55,13 @@ def connect(path, deadline):
     raise SerialCommandError(f"could not connect to {path}: {last_error}")
 
 
+def send_paced(sock, payload):
+    for offset in range(0, len(payload), WRITE_CHUNK_SIZE):
+        sock.sendall(payload[offset : offset + WRITE_CHUNK_SIZE])
+        if offset + WRITE_CHUNK_SIZE < len(payload):
+            time.sleep(WRITE_CHUNK_DELAY)
+
+
 def run_command(path, command, timeout):
     deadline = time.monotonic() + timeout
     token = secrets.token_hex(12).encode()
@@ -72,6 +81,10 @@ def run_command(path, command, timeout):
         receive_until(sock, buffer, re.compile(re.escape(READY_PROMPT)), deadline)
         del buffer[:]
 
+        # Prompt discovery can consume most of the allowance during a slow TCG
+        # boot. Once synchronized, give the command itself a fresh allowance.
+        deadline = time.monotonic() + timeout
+
         payload = (
             b"export PS1=''\nprintf '\\n"
             + begin
@@ -83,7 +96,9 @@ def run_command(path, command, timeout):
             + end
             + b":%d\\n' \"$__27on86_status\"\n"
         )
-        sock.sendall(payload)
+        # A single large write can overrun the emulated UART while one TCG vCPU
+        # is busy draining console input. Pace commands so long uploads survive.
+        send_paced(sock, payload)
         match = receive_until(sock, buffer, end_pattern, deadline)
 
     start = buffer.rfind(begin, 0, match.start())
