@@ -10,6 +10,8 @@ qemu=${QEMU_27ON86_QEMU:-"$build_dir/qemu-system-aarch64"}
 cpus=${QEMU_27ON86_CPUS:-1}
 memory=${QEMU_27ON86_MEMORY:-8G}
 ssh_port=${QEMU_27ON86_SSH_PORT:-10022}
+mac=${QEMU_27ON86_MAC:-52:54:00:12:34:56}
+pcap=${QEMU_27ON86_PCAP:-}
 
 : "${QEMU_27ON86_FIRMWARE:?set QEMU_27ON86_FIRMWARE}"
 : "${QEMU_27ON86_AUX:?set QEMU_27ON86_AUX}"
@@ -36,6 +38,17 @@ case "$cpus:$ssh_port:$QEMU_27ON86_ECID" in
         ;;
 esac
 
+case "$mac" in
+    [0-9A-Fa-f][0-9A-Fa-f]:[0-9A-Fa-f][0-9A-Fa-f]:\
+[0-9A-Fa-f][0-9A-Fa-f]:[0-9A-Fa-f][0-9A-Fa-f]:\
+[0-9A-Fa-f][0-9A-Fa-f]:[0-9A-Fa-f][0-9A-Fa-f])
+        ;;
+    *)
+        echo "MAC address must contain six hexadecimal octets" >&2
+        exit 1
+        ;;
+esac
+
 mkdir -p "$output_dir"
 run_dir=$(mktemp -d "$output_dir/vmapple-run.XXXXXX")
 aux_work="$run_dir/aux.work"
@@ -46,12 +59,16 @@ cp --reflink=auto -- "$QEMU_27ON86_ROOT" "$root_work"
 
 echo "VMApple run directory: $run_dir"
 
+set --
 if test "$cpus" -gt 1; then
-    set -- -icount shift=0,align=off,sleep=off
+    set -- "$@" -icount shift=0,align=off,sleep=off
     machine="vmapple,uuid=$QEMU_27ON86_ECID,accel=tcg,tcg-smp-final-shift=-4"
 else
-    set --
     machine="vmapple,uuid=$QEMU_27ON86_ECID,accel=tcg"
+fi
+
+if test -n "$pcap"; then
+    set -- "$@" -object "filter-dump,id=netcap,netdev=net0,file=$pcap"
 fi
 
 exec "$qemu" \
@@ -74,4 +91,4 @@ exec "$qemu" \
     -drive "if=none,format=raw,file.filename=$root_work,file.locking=off,id=root" \
     -device vmapple-virtio-blk-pci,variant=root,drive=root,share-rw=on \
     -netdev "user,id=net0,ipv6=off,hostfwd=tcp:127.0.0.1:$ssh_port-:22" \
-    -device virtio-net-pci,netdev=net0
+    -device "virtio-net-pci,netdev=net0,mac=$mac"
