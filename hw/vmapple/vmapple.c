@@ -23,7 +23,9 @@
 #include "qemu/log.h"
 #include "qemu/module.h"
 #include "qemu/option.h"
+#include "qemu/timer.h"
 #include "qemu/units.h"
+#include "exec/icount.h"
 #include "monitor/qdev.h"
 #include "hw/core/boards.h"
 #include "hw/core/irq.h"
@@ -74,6 +76,9 @@ struct VMAppleMachineState {
     MemoryRegion iosfc_stub_mr;
 #endif
     uint64_t uuid;
+    int64_t tcg_smp_final_shift;
+    QEMUTimer *tcg_smp_shift_timer;
+    bool tcg_smp_all_powered;
 };
 
 #define TYPE_VMAPPLE_MACHINE   MACHINE_TYPE_NAME("vmapple")
@@ -491,6 +496,61 @@ static void vmapple_reset(void *opaque)
     cpu_set_pc(first_cpu, base);
 }
 
+static void vmapple_tcg_smp_shift(void *opaque)
+{
+    VMAppleMachineState *vms = opaque;
+    MachineState *ms = MACHINE(vms);
+    int n;
+
+    for (n = 0; n < ms->smp.cpus; n++) {
+        if (ARM_CPU(qemu_get_cpu(n))->power_state != PSCI_ON) {
+            timer_mod(vms->tcg_smp_shift_timer,
+                      qemu_clock_get_ns(QEMU_CLOCK_VIRTUAL) +
+                      NANOSECONDS_PER_SECOND / 1000);
+            return;
+        }
+    }
+
+    if (!vms->tcg_smp_all_powered) {
+        /* Let the final secondary finish its early initialization. */
+        vms->tcg_smp_all_powered = true;
+        timer_mod(vms->tcg_smp_shift_timer,
+                  qemu_clock_get_ns(QEMU_CLOCK_VIRTUAL) +
+                  NANOSECONDS_PER_SECOND / 10);
+        return;
+    }
+
+    if (!icount_set_time_shift(vms->tcg_smp_final_shift)) {
+        error_report("could not apply VMApple TCG SMP icount shift");
+    }
+}
+
+static void vmapple_get_tcg_smp_final_shift(Object *obj, Visitor *v,
+                                            const char *name, void *opaque,
+                                            Error **errp)
+{
+    VMAppleMachineState *vms = VMAPPLE_MACHINE(obj);
+
+    visit_type_int(v, name, &vms->tcg_smp_final_shift, errp);
+}
+
+static void vmapple_set_tcg_smp_final_shift(Object *obj, Visitor *v,
+                                            const char *name, void *opaque,
+                                            Error **errp)
+{
+    VMAppleMachineState *vms = VMAPPLE_MACHINE(obj);
+    int64_t value;
+
+    if (!visit_type_int(v, name, &value, errp)) {
+        return;
+    }
+    if (value < -10 || value > 10) {
+        error_setg(errp, "%s must be between -10 and 10", name);
+        return;
+    }
+    vms->tcg_smp_final_shift = value;
+}
+
 static void mach_vmapple_init(MachineState *machine)
 {
     VMAppleMachineState *vms = VMAPPLE_MACHINE(machine);
@@ -530,7 +590,7 @@ static void mach_vmapple_init(MachineState *machine)
             isar1 = FIELD_DP64(isar1, ID_AA64ISAR1, APA, 1);
             isar1 = FIELD_DP64(isar1, ID_AA64ISAR1, API, 1);
             SET_IDREG(&arm_cpu->isar, ID_AA64ISAR1, isar1);
-            arm_cpu->pauth_auth_bypass = true;
+            arm_cpu->pauth_impdef_compat = true;
             object_property_set_int(cpu, "cntfrq", VMAPPLE_TIMEBASE_HZ,
                                     &error_fatal);
         }
@@ -574,6 +634,15 @@ static void mach_vmapple_init(MachineState *machine)
     create_pcie(vms);
 
     create_gpio_devices(vms, VMAPPLE_GPIO, sysmem);
+
+    if (tcg_enabled() && icount_enabled() == ICOUNT_PRECISE &&
+        smp_cpus > 1 && vms->tcg_smp_final_shift != 0) {
+        vms->tcg_smp_shift_timer =
+            timer_new_ns(QEMU_CLOCK_VIRTUAL, vmapple_tcg_smp_shift, vms);
+        timer_mod(vms->tcg_smp_shift_timer,
+                  qemu_clock_get_ns(QEMU_CLOCK_VIRTUAL) +
+                  NANOSECONDS_PER_SECOND / 1000);
+    }
 
     vmapple_firmware_init(vms, sysmem);
     create_cfg(vms, sysmem, &error_fatal);
@@ -677,6 +746,13 @@ static void vmapple_instance_init(Object *obj)
     object_property_add_uint64_ptr(obj, "uuid", &vms->uuid,
                                    OBJ_PROP_FLAG_READWRITE);
     object_property_set_description(obj, "uuid", "Machine UUID (SDOM)");
+
+    object_property_add(obj, "tcg-smp-final-shift", "int",
+                        vmapple_get_tcg_smp_final_shift,
+                        vmapple_set_tcg_smp_final_shift, NULL, NULL);
+    object_property_set_description(
+        obj, "tcg-smp-final-shift",
+        "Final precise icount shift after SMP startup under TCG");
 }
 
 static const TypeInfo vmapple_machine_info = {

@@ -46,10 +46,19 @@ cp --reflink=auto -- "$QEMU_27ON86_ROOT" "$root_work"
 
 echo "VMApple run directory: $run_dir"
 
+if test "$cpus" -gt 1; then
+    set -- -icount shift=0,align=off,sleep=off
+    machine="vmapple,uuid=$QEMU_27ON86_ECID,accel=tcg,tcg-smp-final-shift=-4"
+else
+    set --
+    machine="vmapple,uuid=$QEMU_27ON86_ECID,accel=tcg"
+fi
+
 exec "$qemu" \
-    -machine "vmapple,uuid=$QEMU_27ON86_ECID,accel=tcg" \
+    -machine "$machine" \
     -cpu max \
     -smp "$cpus" \
+    "$@" \
     -m "$memory" \
     -display none \
     -monitor none \

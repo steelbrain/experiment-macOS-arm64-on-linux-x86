@@ -57,6 +57,18 @@ int64_t icount_get(void);
 int64_t icount_to_ns(int64_t icount);
 
 /**
+ * icount_set_time_shift: change the fixed icount conversion at runtime
+ * @shift: base-two nanoseconds per instruction exponent
+ *
+ * The virtual clock remains continuous across the change.  This is only
+ * available when icount is operating in precise mode.
+ *
+ * Return: true if the shift was changed, false if it was invalid or icount
+ * was not configured in precise mode.
+ */
+bool icount_set_time_shift(int shift);
+
+/**
  * icount_configure: configure the icount options, including "shift"
  * @opts: Options to parse
  * @errp: pointer to a NULL-initialized error object

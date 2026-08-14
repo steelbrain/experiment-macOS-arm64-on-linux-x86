@@ -315,9 +315,21 @@ static uint64_t pauth_computepac_impdef(uint64_t data, uint64_t modifier,
 static uint64_t pauth_computepac(CPUARMState *env, uint64_t data,
                                  uint64_t modifier, ARMPACKey key)
 {
-    if (cpu_isar_feature(aa64_pauth_qarma5, env_archcpu(env))) {
+    ARMCPU *cpu = env_archcpu(env);
+
+    /*
+     * Keep signatures stable across vCPUs when the guest's implementation-
+     * defined cipher and key registers are not available to TCG.  A fixed
+     * emulation key preserves pointer identity and integrity round trips;
+     * authentication below still strips the guest's original signatures.
+     */
+    if (cpu->pauth_impdef_compat) {
+        return pauth_computepac_impdef(data, modifier, (ARMPACKey) { 0 });
+    }
+
+    if (cpu_isar_feature(aa64_pauth_qarma5, cpu)) {
         return pauth_computepac_architected(data, modifier, key, false);
-    } else if (cpu_isar_feature(aa64_pauth_qarma3, env_archcpu(env))) {
+    } else if (cpu_isar_feature(aa64_pauth_qarma3, cpu)) {
         return pauth_computepac_architected(data, modifier, key, true);
     } else {
         return pauth_computepac_impdef(data, modifier, key);
@@ -435,7 +447,7 @@ static uint64_t pauth_auth(CPUARMState *env, uint64_t ptr, uint64_t modifier,
      * is not available to TCG.  They may opt into authentication bypass while
      * retaining architectural pointer stripping behavior.
      */
-    if (cpu->pauth_auth_bypass) {
+    if (cpu->pauth_impdef_compat) {
         return orig_ptr;
     }
 

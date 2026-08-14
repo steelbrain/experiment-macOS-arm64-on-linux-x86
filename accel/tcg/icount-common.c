@@ -47,6 +47,8 @@
 static bool icount_sleep = true;
 /* Arbitrarily pick 1MIPS as the minimum allowable speed.  */
 #define MAX_ICOUNT_SHIFT 10
+/* Fractional nanoseconds per instruction, down to roughly one picosecond. */
+#define MIN_ICOUNT_SHIFT -10
 
 bool icount_align_option;
 
@@ -153,9 +155,40 @@ int64_t icount_get(void)
     return icount;
 }
 
+static int64_t icount_to_ns_shift(int64_t icount, int shift)
+{
+    return shift >= 0 ? icount << shift : icount / (1LL << -shift);
+}
+
 int64_t icount_to_ns(int64_t icount)
 {
-    return icount << qatomic_read(&timers_state.icount_time_shift);
+    return icount_to_ns_shift(
+        icount, qatomic_read(&timers_state.icount_time_shift));
+}
+
+bool icount_set_time_shift(int shift)
+{
+    int64_t icount;
+    int64_t clock;
+
+    if (use_icount != ICOUNT_PRECISE || shift < MIN_ICOUNT_SHIFT ||
+        shift > MAX_ICOUNT_SHIFT) {
+        return false;
+    }
+
+    seqlock_write_lock(&timers_state.vm_clock_seqlock,
+                       &timers_state.vm_clock_lock);
+    icount = icount_get_raw_locked();
+    clock = qatomic_read(&timers_state.qemu_icount_bias) +
+            icount_to_ns_shift(
+                icount, qatomic_read(&timers_state.icount_time_shift));
+    qatomic_set(&timers_state.icount_time_shift, shift);
+    qatomic_set(&timers_state.qemu_icount_bias,
+                clock - icount_to_ns_shift(icount, shift));
+    seqlock_write_unlock(&timers_state.vm_clock_seqlock,
+                         &timers_state.vm_clock_lock);
+
+    return true;
 }
 
 /*
@@ -225,7 +258,20 @@ static void icount_adjust_vm(void *opaque)
 int64_t icount_round(int64_t count)
 {
     int shift = qatomic_read(&timers_state.icount_time_shift);
-    return (count + (1 << shift) - 1) >> shift;
+
+    if (shift >= 0) {
+        return (count + (1 << shift) - 1) >> shift;
+    }
+
+    int64_t scale = 1LL << -shift;
+
+    if (count > INT64_MAX / scale) {
+        return INT64_MAX;
+    }
+    if (count < INT64_MIN / scale) {
+        return INT64_MIN;
+    }
+    return count * scale;
 }
 
 static void icount_warp_rt(void)
@@ -420,7 +466,8 @@ bool icount_configure(QemuOpts *opts, Error **errp)
     const char *option = qemu_opt_get(opts, "shift");
     bool sleep = qemu_opt_get_bool(opts, "sleep", true);
     bool align = qemu_opt_get_bool(opts, "align", false);
-    long time_shift = -1;
+    bool adaptive = false;
+    long time_shift = 0;
 
     if (!option) {
         if (qemu_opt_get(opts, "align") != NULL) {
@@ -435,9 +482,11 @@ bool icount_configure(QemuOpts *opts, Error **errp)
         return false;
     }
 
-    if (strcmp(option, "auto") != 0) {
+    adaptive = strcmp(option, "auto") == 0;
+    if (!adaptive) {
         if (qemu_strtol(option, NULL, 0, &time_shift) < 0
-            || time_shift < 0 || time_shift > MAX_ICOUNT_SHIFT) {
+            || time_shift < MIN_ICOUNT_SHIFT
+            || time_shift > MAX_ICOUNT_SHIFT) {
             error_setg(errp, "icount: Invalid shift value");
             return false;
         }
@@ -457,7 +506,7 @@ bool icount_configure(QemuOpts *opts, Error **errp)
 
     icount_align_option = align;
 
-    if (time_shift >= 0) {
+    if (!adaptive) {
         timers_state.icount_time_shift = time_shift;
         icount_enable_precise();
         return true;
