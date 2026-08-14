@@ -21,8 +21,8 @@ in macOS 27, are separate compatibility milestones.
 Milestones M0 through M2 are complete on the x86-64 Linux development host.
 The macOS 13 VMApple guest now boots repeatably with eight vCPUs, exposes a
 headless SSH service, passes CPU, memory, storage, networking, and timer
-workloads, and shuts down cleanly. The one-vCPU configuration remains a
-passing regression target. See:
+workloads, reboots into a second usable boot, and shuts down cleanly. The
+one-vCPU configuration remains a passing regression target. See:
 
 - [Design](docs/design.md)
 - [Roadmap](docs/roadmap.md)

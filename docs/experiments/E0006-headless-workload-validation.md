@@ -40,6 +40,18 @@ The validator performs the following operations for each run:
 After the two eight-vCPU runs, the validator repeats the complete procedure
 with one vCPU unless `--skip-one-cpu-regression` is supplied.
 
+To validate a real reset and second boot in the same QEMU process, run one
+eight-vCPU validation with:
+
+```sh
+scripts/27on86/validate-headless.py --runs 1 --cpus 8 \
+    --skip-one-cpu-regression --reboot-cycle
+```
+
+This enables QEMU reset, requests a guest reboot, requires a guest-originated
+QMP RESET event, configures the second kernel handoff, restores SSH, verifies
+the vCPU count, and then requires a clean guest halt.
+
 Long serial uploads are divided into short, acknowledged base64 chunks. This
 is required because a single-core translated guest may not drain an emulated
 UART quickly enough to accept a large unacknowledged command.
@@ -56,6 +68,11 @@ The runs emitted guest-originated clean shutdown events after 492.3 and 523.5
 seconds. A fresh one-vCPU regression passed the same checks with one worker and
 shut down cleanly after 238.6 seconds.
 
+The reboot-cycle run emitted a guest-originated RESET event with reason
+`guest-reset`, reached a second XNU handoff, restored SSH with eight online
+vCPUs, and then emitted a guest-originated clean shutdown. The complete
+boot-workload-reboot-boot-halt cycle took 1201.7 seconds.
+
 The installed network service binds only when the emulated NIC presents the
 stable VMApple address used by the guest's interface record. The runner now
 uses that address by default while retaining an environment override.
@@ -69,10 +86,10 @@ layout before creating a VM, while accepting boot-normalized auxiliary state.
 The macOS 13 VMApple guest is usable headlessly under AArch64 TCG on an x86-64
 host with eight vCPUs. Fresh writable clones repeatedly support authenticated
 host-to-guest commands, storage and network I/O, timer progress, concurrent CPU
-work, and clean guest shutdown. The one-vCPU path remains functional.
+work, clean guest reboot, a second boot, and clean guest shutdown. The one-vCPU
+path remains functional.
 
 ## Next experiment
 
-Validate a guest-requested reboot event and reinject the handoff configuration
-after reset, then use the resulting lifecycle harness for the next guest
-version in the compatibility ladder.
+Use the lifecycle harness for the next guest version in the compatibility
+ladder and record the first contract that diverges from this baseline.
