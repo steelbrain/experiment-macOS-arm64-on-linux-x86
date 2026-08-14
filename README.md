@@ -7,25 +7,23 @@ The project targets the VMApple virtual machine contract. It does **not** aim
 to reproduce a physical Apple SoC, provide GPU acceleration, or bypass guest
 security policy.
 
-## First milestone
+## Boot milestone
 
-Reach a reproducible macOS 12 boot checkpoint with QEMU's `vmapple` machine
+Reach a reproducible arm64 macOS boot checkpoint with QEMU's `vmapple` machine
 and TCG on an x86-64 host. A serial console, useful boot log, or reachable
 network service counts; a graphical desktop does not.
 
-macOS 12 is the initial compatibility target because upstream VMApple support
-already establishes it as a known-good guest. Later guest versions, ending in
-macOS 27, are separate compatibility milestones.
+The first completed guest milestone is macOS 13. Later guest versions, ending
+in macOS 27, are separate compatibility milestones.
 
 ## Project status
 
-Milestones M0 and M1 are complete on the x86-64 Linux development host. The
+Milestones M0 through M2 are complete on the x86-64 Linux development host. The
 pinned QEMU baseline builds with native x86-64 TCG, the AArch64 Linux control
 boot is repeatable, and VMApple executes repository-owned firmware through
-TCG without an accelerator rejection, assertion, or reset loop.
-
-The next milestone is a known-good macOS 12 guest boot using locally
-provisioned inputs. See:
+TCG without an accelerator rejection, assertion, or reset loop. A locally
+provisioned macOS 13 guest also boots through XNU into a live launchd process
+with one vCPU and headless graphics. See:
 
 - [Design](docs/design.md)
 - [Roadmap](docs/roadmap.md)

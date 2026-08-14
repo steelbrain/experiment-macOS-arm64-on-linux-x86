@@ -26,13 +26,15 @@ a QEMU assertion, unsupported-accelerator rejection, or immediate reset loop.
 
 ## M2: Known-good guest boot
 
-- Use a locally provisioned macOS 12 VMApple guest.
+Status: complete for macOS 13 with one vCPU. See E0004 in
+`docs/experiments/`.
+
+- Use a locally provisioned VMApple guest.
 - Classify failures as CPU, timer/interrupt, memory, boot, or device contract.
 - Implement the smallest contract-correct fixes.
 - Establish storage and networking.
 
-Exit condition: a repeatable boot checkpoint is visible through serial output
-or a reachable network service.
+Exit condition: two clean starts reach XNU userspace with a live PID 1.
 
 ## M3: Guest-version ladder
 
