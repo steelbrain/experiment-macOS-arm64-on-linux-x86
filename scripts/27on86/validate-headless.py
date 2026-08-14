@@ -229,7 +229,7 @@ def run_validation(
         )
         network_url = f"http://10.0.2.2:{http_port}/{network_file.name}"
         with WORKLOAD.open("rb") as workload:
-            subprocess.run(
+            result = subprocess.run(
                 ssh_command(
                     ssh_port,
                     identity,
@@ -269,7 +269,7 @@ def run_validation(
                 check=True,
             )
             wait_for_ssh(ssh_port, identity, 60)
-            result = subprocess.run(
+            subprocess.run(
                 ssh_command(
                     ssh_port,
                     identity,
