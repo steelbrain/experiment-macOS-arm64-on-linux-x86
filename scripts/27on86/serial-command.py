@@ -68,7 +68,7 @@ def run_command(path, command, timeout):
         )
         receive_until(sock, buffer, prompt_pattern, deadline)
         del buffer[:]
-        sock.sendall(b"stty -echo; export PS1='" + READY_PROMPT + b"'\n")
+        sock.sendall(b"set +H; stty -echo; export PS1='" + READY_PROMPT + b"'\n")
         receive_until(sock, buffer, re.compile(re.escape(READY_PROMPT)), deadline)
         del buffer[:]
 
