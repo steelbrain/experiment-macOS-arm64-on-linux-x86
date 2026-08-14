@@ -62,7 +62,9 @@ Two independent eight-vCPU runs passed the full workload and reported eight
 online, active, and logical CPUs. Both touched and verified 256 MiB of memory,
 ran eight concurrent digest workers, wrote and read back 32 MiB of storage,
 fetched distinct payloads from a host HTTP service through user networking,
-and measured a two-second monotonic interval within tolerance.
+and measured a two-second monotonic interval within tolerance. A subsequent
+fresh run completed 512 ordered lock and condition-variable handoffs across
+eight guest threads, explicitly exercising inter-CPU synchronization.
 
 The runs emitted guest-originated clean shutdown events after 492.3 and 523.5
 seconds. A fresh one-vCPU regression passed the same checks with one worker and
