@@ -16,6 +16,9 @@ tcg_smp_final_shift=${QEMU_27ON86_TCG_SMP_FINAL_SHIFT:--4}
 run_installer=${QEMU_27ON86_RUN_INSTALLER:-off}
 serial=${QEMU_27ON86_SERIAL:-}
 boot_args=${QEMU_27ON86_BOOT_ARGS:-}
+trace_event=${QEMU_27ON86_TRACE_EVENT:-}
+virtio_console_chardev=${QEMU_27ON86_VIRTIO_CONSOLE_CHARDEV:-}
+virtio_console_max_ports=${QEMU_27ON86_VIRTIO_CONSOLE_MAX_PORTS:-31}
 
 : "${QEMU_27ON86_FIRMWARE:?set QEMU_27ON86_FIRMWARE}"
 : "${QEMU_27ON86_AUX:?set QEMU_27ON86_AUX}"
@@ -35,9 +38,9 @@ if ! test -x "$qemu"; then
     exit 1
 fi
 
-case "$cpus:$ssh_port:$QEMU_27ON86_ECID" in
+case "$cpus:$ssh_port:$virtio_console_max_ports:$QEMU_27ON86_ECID" in
     *[!0-9:]* | :* | *::*)
-        echo "CPU count, SSH port, and ECID must be unsigned decimal values" >&2
+        echo "CPU count, SSH port, console port count, and ECID must be unsigned decimal values" >&2
         exit 1
         ;;
 esac
@@ -99,6 +102,17 @@ fi
 
 if test -n "$pcap"; then
     set -- "$@" -object "filter-dump,id=netcap,netdev=net0,file=$pcap"
+fi
+
+if test -n "$trace_event"; then
+    set -- "$@" -trace "enable=$trace_event,file=$run_dir/trace.log"
+fi
+
+if test -n "$virtio_console_chardev"; then
+    set -- "$@" \
+        -chardev "$virtio_console_chardev,id=vconsole0" \
+        -device "virtio-serial-pci,id=vserial0,max_ports=$virtio_console_max_ports" \
+        -device virtconsole,id=vconsoleport0,chardev=vconsole0
 fi
 
 exec "$qemu" \
