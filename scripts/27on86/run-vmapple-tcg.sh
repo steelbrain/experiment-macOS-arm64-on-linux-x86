@@ -14,6 +14,7 @@ mac=${QEMU_27ON86_MAC:-52:54:00:12:34:56}
 pcap=${QEMU_27ON86_PCAP:-}
 tcg_smp_final_shift=${QEMU_27ON86_TCG_SMP_FINAL_SHIFT:--4}
 run_installer=${QEMU_27ON86_RUN_INSTALLER:-off}
+serial=${QEMU_27ON86_SERIAL:-}
 
 : "${QEMU_27ON86_FIRMWARE:?set QEMU_27ON86_FIRMWARE}"
 : "${QEMU_27ON86_AUX:?set QEMU_27ON86_AUX}"
@@ -79,6 +80,10 @@ cp --reflink=auto -- "$QEMU_27ON86_ROOT" "$root_work"
 
 echo "VMApple run directory: $run_dir"
 
+if test -z "$serial"; then
+    serial="file:$run_dir/serial.log"
+fi
+
 set --
 if test "$cpus" -gt 1; then
     set -- "$@" -icount shift=0,align=off,sleep=off
@@ -99,7 +104,7 @@ exec "$qemu" \
     -m "$memory" \
     -display none \
     -monitor none \
-    -serial "file:$run_dir/serial.log" \
+    -serial "$serial" \
     -qmp "unix:$run_dir/qmp.sock,server=on,wait=off" \
     -action panic=pause,shutdown=pause \
     -no-reboot \
