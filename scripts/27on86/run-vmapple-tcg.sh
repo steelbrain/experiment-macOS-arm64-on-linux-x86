@@ -19,6 +19,8 @@ boot_args=${QEMU_27ON86_BOOT_ARGS:-}
 trace_event=${QEMU_27ON86_TRACE_EVENT:-}
 virtio_console_chardev=${QEMU_27ON86_VIRTIO_CONSOLE_CHARDEV:-}
 virtio_console_max_ports=${QEMU_27ON86_VIRTIO_CONSOLE_MAX_PORTS:-31}
+gdb_port=${QEMU_27ON86_GDB_PORT:-}
+pause_at_start=${QEMU_27ON86_PAUSE_AT_START:-off}
 
 : "${QEMU_27ON86_FIRMWARE:?set QEMU_27ON86_FIRMWARE}"
 : "${QEMU_27ON86_AUX:?set QEMU_27ON86_AUX}"
@@ -42,6 +44,15 @@ case "$cpus:$ssh_port:$virtio_console_max_ports:$QEMU_27ON86_ECID" in
     *[!0-9:]* | :* | *::*)
         echo "CPU count, SSH port, console port count, and ECID must be unsigned decimal values" >&2
         exit 1
+        ;;
+esac
+
+case "$gdb_port" in
+    '' | *[!0-9]*)
+        if test -n "$gdb_port"; then
+            echo "GDB port must be an unsigned decimal value" >&2
+            exit 1
+        fi
         ;;
 esac
 
@@ -70,6 +81,15 @@ case "$run_installer" in
         ;;
     *)
         echo "installer selector must be 'on' or 'off'" >&2
+        exit 1
+        ;;
+esac
+
+case "$pause_at_start" in
+    on | off)
+        ;;
+    *)
+        echo "pause-at-start selector must be 'on' or 'off'" >&2
         exit 1
         ;;
 esac
@@ -113,6 +133,14 @@ if test -n "$virtio_console_chardev"; then
         -chardev "$virtio_console_chardev,id=vconsole0" \
         -device "virtio-serial-pci,id=vserial0,max_ports=$virtio_console_max_ports" \
         -device virtconsole,id=vconsoleport0,chardev=vconsole0
+fi
+
+if test -n "$gdb_port"; then
+    set -- "$@" -gdb "tcp::$gdb_port"
+fi
+
+if test "$pause_at_start" = on; then
+    set -- "$@" -S
 fi
 
 exec "$qemu" \
