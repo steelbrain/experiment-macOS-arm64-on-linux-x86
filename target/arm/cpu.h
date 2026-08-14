@@ -1126,6 +1126,7 @@ struct ArchCPU {
     bool prop_pauth_impdef;
     bool prop_pauth_qarma3;
     bool prop_pauth_qarma5;
+    bool pauth_auth_bypass;
     bool prop_lpa2;
 
     /* GM blocksize, in log_2(words), ie low 4 bits of GMID_EL0 */

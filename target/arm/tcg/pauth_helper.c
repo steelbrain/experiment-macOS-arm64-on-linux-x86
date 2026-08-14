@@ -429,6 +429,16 @@ static uint64_t pauth_auth(CPUARMState *env, uint64_t ptr, uint64_t modifier,
     uint64_t pac, orig_ptr, cmp_mask;
 
     orig_ptr = pauth_original_ptr(ptr, param);
+
+    /*
+     * Some virtual platforms use an implementation-defined PAC cipher which
+     * is not available to TCG.  They may opt into authentication bypass while
+     * retaining architectural pointer stripping behavior.
+     */
+    if (cpu->pauth_auth_bypass) {
+        return orig_ptr;
+    }
+
     pac = pauth_computepac(env, orig_ptr, modifier, *key);
     bot_bit = 64 - param.tsz;
     top_bit = 64 - 8 * param.tbi;

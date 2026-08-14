@@ -53,6 +53,7 @@
 #include "system/tcg.h"
 #include "target/arm/gtimer.h"
 #include "target/arm/cpu.h"
+#include "target/arm/cpu-features.h"
 
 struct VMAppleMachineState {
     MachineState parent;
@@ -467,6 +468,21 @@ static void mach_vmapple_init(MachineState *machine)
         cpu = object_new(possible_cpus->cpus[n].type);
         object_property_set_int(cpu, "mp-affinity",
                                 possible_cpus->cpus[n].arch_id, &error_fatal);
+
+        if (tcg_enabled()) {
+            ARMCPU *arm_cpu = ARM_CPU(cpu);
+            uint64_t isar1 = GET_IDREG(&arm_cpu->isar, ID_AA64ISAR1);
+
+            /*
+             * The virtual platform exposes the original pointer
+             * authentication architecture, without the later faulting
+             * authentication extensions advertised by the TCG max CPU.
+             */
+            isar1 = FIELD_DP64(isar1, ID_AA64ISAR1, APA, 1);
+            isar1 = FIELD_DP64(isar1, ID_AA64ISAR1, API, 1);
+            SET_IDREG(&arm_cpu->isar, ID_AA64ISAR1, isar1);
+            arm_cpu->pauth_auth_bypass = true;
+        }
 
         cs = CPU(cpu);
         cs->cpu_index = n;
