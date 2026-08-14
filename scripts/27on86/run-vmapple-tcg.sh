@@ -15,6 +15,7 @@ pcap=${QEMU_27ON86_PCAP:-}
 tcg_smp_final_shift=${QEMU_27ON86_TCG_SMP_FINAL_SHIFT:--4}
 run_installer=${QEMU_27ON86_RUN_INSTALLER:-off}
 serial=${QEMU_27ON86_SERIAL:-}
+boot_args=${QEMU_27ON86_BOOT_ARGS:-}
 
 : "${QEMU_27ON86_FIRMWARE:?set QEMU_27ON86_FIRMWARE}"
 : "${QEMU_27ON86_AUX:?set QEMU_27ON86_AUX}"
@@ -77,6 +78,10 @@ root_work="$run_dir/root.work"
 
 cp --reflink=auto -- "$QEMU_27ON86_AUX" "$aux_work"
 cp --reflink=auto -- "$QEMU_27ON86_ROOT" "$root_work"
+
+if test -n "$boot_args"; then
+    "$script_dir/set-aux-boot-args.py" "$aux_work" "$boot_args"
+fi
 
 echo "VMApple run directory: $run_dir"
 
