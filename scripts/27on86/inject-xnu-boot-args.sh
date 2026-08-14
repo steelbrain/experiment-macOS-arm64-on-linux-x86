@@ -4,6 +4,7 @@ set -eu
 
 script_dir=$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)
 gdb=${QEMU_27ON86_GDB_BIN:-gdb}
+export QEMU_27ON86_SCRIPT_DIR=$script_dir
 
 : "${QEMU_27ON86_GDB_PORT:?set QEMU_27ON86_GDB_PORT}"
 : "${QEMU_27ON86_XNU_BOOT_ARGS:?set QEMU_27ON86_XNU_BOOT_ARGS}"
