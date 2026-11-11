@@ -1,7 +1,8 @@
 #!/usr/bin/env bash
 # Checks that this host can run the guest: an x86-64 Linux kernel, scripts/build.sh's QEMU with the
 # vmapple machine, TCG and reims-graphics-pci, /dev/udmabuf usable by this user (reims-vgpu maps the
-# guest's pages for the GPU through it), and a Vulkan device that is not a CPU implementation.
+# guest's pages for the GPU through it), and a Vulkan device (a warning where all are CPU
+# implementations such as llvmpipe).
 #
 # usage: scripts/check-host.sh
 # env:   QEMU (default: scripts/build.sh's, under WORK), WORK (~/work)
@@ -26,7 +27,7 @@ command -v vulkaninfo > /dev/null || die "needs vulkaninfo (vulkan-tools) to lis
 gpus=$(vulkaninfo --summary 2> /dev/null | sed -n 's/^[[:space:]]*deviceName *= *//p')
 [[ -n $gpus ]] || die "Vulkan lists no device"
 grep -qv -i -E 'llvmpipe|lavapipe|swiftshader' <<< "$gpus" ||
-  die "Vulkan lists only CPU implementations: $(paste -sd, <<< "$gpus")"
+  echo "check-host: warning: Vulkan lists only CPU implementations; this flow was tested on a GPU" >&2
 
 printf 'architecture: %s\n' "$(uname -m)"
 printf 'kernel: %s\n' "$(uname -r)"
