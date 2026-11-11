@@ -28,19 +28,22 @@ toolchains and Cargo's download cache already on the host.
 
 | Guest | Checks | SSH login after QEMU starts | Metal app, 10 s on screen | Whole check |
 | --- | --- | --- | --- | --- |
-| macOS 27.0.1 (26A434) | 15 of 15 | TBD | TBD | TBD |
+| macOS 27.0.1 (26A434) | 15 of 15 | 115.9 s | 172 frames presented, 30 dropped, 24.5 fps | 9 min 7 s |
 | macOS 27.2.1 (26B131) | 15 of 15 | 123.5 s | 238 frames presented, 168 dropped, 56.6 fps | 8 min 50 s |
 
-- The desktop renders on the 780M. QEMU's screendump at the end of the 27.2.1
-  check shows Finder's menu bar, the Dock and the desktop widgets (440,992
-  distinct colours; the check fails a screen of one colour).
+- The desktop renders on the 780M. QEMU's screendump at the end of each check
+  shows Finder's menu bar, the Dock and the desktop widgets (27.0.1: 481,375
+  distinct colours; 27.2.1: 440,992; the check fails a screen of one colour).
 - System Integrity Protection is enabled and `kern.bootargs` is empty.
   reims-vgpu's kexts (Graft, ReimsGraphics, RgfxGate) load, and the guest's
   Metal device is `AMD Radeon 780M Graphics (RADV PHOENIX)`.
-- Under `-t`, the check does not judge the Metal app's dropped frames: the
-  emulated CPU sets the rate at which WindowServer composites. During the
-  27.2.1 probe's call, the host's display flipped 251 times in 45 s.
-- TBD 27.0.1 minibuddy note
+- Under `-t`, the check passes the Metal app on presented frames and does not
+  judge its dropped frames: the emulated CPU sets the rate at which
+  WindowServer composites.
+- The 27.0.1 guest was first copied with `scripts/prepare-guest-nominibuddy.sh`
+  (step 3), which took 12 min 15 s. Before that it passed 14 of 15: Setup
+  Assistant's "Sign In to Your Apple Account" covered the session, and the
+  check reported the Metal app as unread. The 27.2.1 guest needed no copy.
 
 ## Pinned sources
 
@@ -65,7 +68,7 @@ reims-vgpu's `vendor/qemu` at the pinned commit:
 | TCG's generic timer counts at 1 GHz, while macOS's device tree gives every CPU a 24 MHz timebase | QEMU `a52f4a20`: under TCG, `vmapple` sets each CPU's `cntfrq` to 24 MHz |
 | macOS makes pointer-authentication calls (SMCCC 0xC1000000-0xC10000FF) over HVC | QEMU `a52f4a20`: QEMU answers them as not supported, as Hypervisor.framework does under HVF |
 | macOS writes a DMA request to a doorbell at 0x4ffff8, where the machine has no device. Under TCG that write is an external abort, and a 27.0.1 kernel panics on it | QEMU `58a6f887`: an unimplemented device there ignores the write |
-| The `max` CPU offers SME with streaming vectors of up to 2048 bits, and a macOS 14.6.1 kernel panics sizing its SME state | QEMU `d2bd3447`: no SME by default on `vmapple` under TCG. macOS 27 boots either way |
+| The `max` CPU offers SME with streaming vectors of up to 2048 bits, and a macOS 14.6.1 kernel panics sizing its SME state | QEMU `d2bd3447`: no SME by default on `vmapple` under TCG. macOS 27.0.1 boots either way |
 
 The guest's RAM is a shared memfd (`memory-backend-memfd,share=on`), so
 reims-vgpu maps the guest's pages for the GPU in place, through `/dev/udmabuf`,
@@ -122,8 +125,8 @@ reims-vgpu's configuration bundle unchanged.
   reims-vgpu at the pinned commit:
   `make -C firmware/ambrosia guest-tools`, then copy
   `firmware/ambrosia/build/guest-tools` to the host.
-- Memory: the guest gets 8 GiB. A boot check's job peaked at 12.9 GiB, page
-  cache included.
+- Memory: the guest gets 8 GiB. The jobs that ran the boot checks above
+  peaked at 12.9 to 13.5 GiB, page cache included.
 - Disk space: the guest's sparse disk, a reflink clone per boot, `$WORK` at
   7.3 GiB after the build, the two Rust toolchains at 2.7 GiB, and Cargo's
   download cache.
@@ -175,16 +178,23 @@ GUEST_USER=... GUEST_PASS=... ~/work/reims-vgpu/firmware/ambrosia/check-boot.sh 
   -T ~/guest-tools -o ~/work/logs/check-1 ~/guests/macos
 ```
 
-It boots the guest with the same command line as `boot-ambrosia.sh`, logs in
-over SSH, and runs 14 checks, from the firmware's console to an on-screen Metal
-app's presented frames. Under `-t` its time limits are five times those under
-HVF, and it does not judge the Metal app's frame pacing.
+It boots the guest as `boot-ambrosia.sh` does, with `~/work`'s `Config.cpio`,
+logs in over SSH, and runs 15 checks, from Ambrosia's entry into the kernel to
+QMP's screendump at the end. The script's header describes each. Under `-t` it
+waits 300 s for the SSH login and 300 s more for the desktop, gives each command
+in the guest five times its limit under HVF, and prints the Metal app's dropped
+frames without judging them.
 
-TBD minibuddy
+If Setup Assistant opens at the guest's login, it covers the session, and the
+check reports the Metal app as unread, as it did for the 27.0.1 guest above.
+Make a copy of the guest without it first. This boots a clone under TCG, waits
+for the desktop, runs reims-vgpu's `scripts/internal/guest-minibuddy-off.sh` in
+it, shuts it down and keeps the clone:
 
-## Known issues
-
-TBD
+```sh
+GUEST_USER=... GUEST_PASS=... scripts/prepare-guest-nominibuddy.sh \
+  ~/guests/macos ~/guests/macos-nominibuddy
+```
 
 ## Project boundaries
 
