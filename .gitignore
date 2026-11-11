@@ -1,0 +1,20 @@
+# Apple restore and firmware artifacts
+*.ipsw
+*.aea
+*.dmg
+*.img
+*.raw
+*.qcow2
+*.bin
+
+*.env
+
+# Generated VM state and logs
+artifacts/
+build/
+logs/
+*.log
+*.pid
+*.sock
+__pycache__/
+*.pyc
