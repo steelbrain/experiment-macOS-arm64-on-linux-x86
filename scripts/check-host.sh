@@ -32,5 +32,5 @@ grep -qv -i -E 'llvmpipe|lavapipe|swiftshader' <<< "$gpus" ||
 printf 'architecture: %s\n' "$(uname -m)"
 printf 'kernel: %s\n' "$(uname -r)"
 printf 'QEMU: %s\n' "$QEMU"
-printf 'Vulkan devices: %s\n' "$(paste -sd, <<< "$gpus" | sed 's/,/, /g')"
+printf 'Vulkan devices: %s\n' "$(paste -sd';' <<< "$gpus" | sed 's/;/; /g')"
 printf 'TCG, vmapple, reims-graphics-pci, udmabuf: usable\n'
