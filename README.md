@@ -17,7 +17,30 @@ The QEMU fork and experiment records this repository held before are on the
 
 ## Status (2026-11-11)
 
-TBD
+Host: a Ryzen 7 8745H with a Radeon 780M, on CachyOS with kernel
+`7.3.3-1-cachyos` and Mesa 26.2.6 (RADV). Its details are under
+[Requirements](#requirements).
+
+Built by `scripts/build.sh` from an empty `$WORK` at the pins below, both
+guests pass all 15 checks of reims-vgpu's `firmware/ambrosia/check-boot.sh`
+under TCG (`-t`) with 4 vCPUs. The build took 6 min 57 s, with the Rust
+toolchains and Cargo's download cache already on the host.
+
+| Guest | Checks | SSH login after QEMU starts | Metal app, 10 s on screen | Whole check |
+| --- | --- | --- | --- | --- |
+| macOS 27.0.1 (26A434) | 15 of 15 | TBD | TBD | TBD |
+| macOS 27.2.1 (26B131) | 15 of 15 | 123.5 s | 238 frames presented, 168 dropped, 56.6 fps | 8 min 50 s |
+
+- The desktop renders on the 780M. QEMU's screendump at the end of the 27.2.1
+  check shows Finder's menu bar, the Dock and the desktop widgets (440,992
+  distinct colours; the check fails a screen of one colour).
+- System Integrity Protection is enabled and `kern.bootargs` is empty.
+  reims-vgpu's kexts (Graft, ReimsGraphics, RgfxGate) load, and the guest's
+  Metal device is `AMD Radeon 780M Graphics (RADV PHOENIX)`.
+- Under `-t`, the check does not judge the Metal app's dropped frames: the
+  emulated CPU sets the rate at which WindowServer composites. During the
+  27.2.1 probe's call, the host's display flipped 251 times in 45 s.
+- TBD 27.0.1 minibuddy note
 
 ## Pinned sources
 
@@ -56,7 +79,54 @@ reims-vgpu's configuration bundle unchanged.
 
 ## Requirements
 
-TBD
+- An x86-64 Linux host with a GPU that has a Vulkan driver. Tested: a Ryzen 7
+  8745H (8 cores, 16 threads) with its Radeon 780M and 29 GiB of RAM, on
+  CachyOS with kernel `7.3.3-1-cachyos` and Mesa 26.2.6, whose Vulkan driver
+  for the GPU is RADV. KVM is not used.
+- Where Vulkan lists more than one GPU, reims-vgpu times each and uses the
+  fastest. To choose one, set `MESA_VK_DEVICE_SELECT=<vendor>:<device>!` for
+  QEMU. The test host also has an RTX 3090, and every run below set
+  `MESA_VK_DEVICE_SELECT=1002:1900!` (the 780M).
+- `/dev/udmabuf` usable by your user. reims-vgpu maps the guest's memory for
+  the GPU through it. On CachyOS it belongs to the `kvm` group:
+  `sudo usermod -aG kvm "$USER"`, then log in again.
+- Build packages and rustup. On CachyOS or Arch Linux:
+
+  ```sh
+  sudo pacman -S --needed base-devel git curl python ninja pkgconf flex bison bzip2 cmake \
+    glib2 pixman libslirp zlib dtc gnutls pipewire libpulse alsa-lib libusb spice \
+    vulkan-icd-loader vulkan-tools libx11 libxext libxrandr libxcursor libxi libxfixes libxss \
+    libxtst libxkbcommon wayland libdecor mesa libdrm dbus systemd-libs gtk3 clang lld cpio \
+    sshpass perl
+  curl --proto =https --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y --default-toolchain none --profile minimal
+  ```
+
+  Add your GPU's Vulkan driver (`vulkan-radeon` for AMD). The list is
+  reims-vgpu's `scripts/install-ctl.sh` list with `gnutls`, `vulkan-tools`,
+  `clang`, `lld`, `cpio`, `sshpass` and `perl` added. reims-vgpu's and
+  Ambrosia's `rust-toolchain.toml` files select their toolchains.
+- An installed arm64 macOS VM. This repository does not install or restore
+  macOS: Virtualization.framework installs it, on an Apple silicon Mac.
+  Supply the installed VM as a directory holding:
+  - `disk.img`, the installed system disk, raw;
+  - `aux.img`, the VM's auxiliary storage, or `aux.img.trimmed`, the same
+    without its first 16 KiB;
+  - `vm.toml`, with the line `ecid = <the VM's ECID in decimal>`.
+
+  Tested with macOS 27.0.1 (26A434) and 27.2.1 (26B131). The scripts boot
+  reflink clones of the disks, so the directory must be on a filesystem with
+  reflinks (btrfs, or XFS with reflink), and the guest's own files are never
+  written.
+- For the boot check only: reims-vgpu's guest probes `bench` and
+  `present_probe`, which build with Xcode on a Mac, from a checkout of
+  reims-vgpu at the pinned commit:
+  `make -C firmware/ambrosia guest-tools`, then copy
+  `firmware/ambrosia/build/guest-tools` to the host.
+- Memory: the guest gets 8 GiB. A boot check's job peaked at 12.9 GiB, page
+  cache included.
+- Disk space: the guest's sparse disk, a reflink clone per boot, `$WORK` at
+  7.3 GiB after the build, the two Rust toolchains at 2.7 GiB, and Cargo's
+  download cache.
 
 Do not commit or share guest files: the disk holds an installed copy of macOS,
 and the auxiliary storage and ECID identify the VM.
